@@ -35,7 +35,7 @@
         .delete-btn { color: #ccc; border: none; background: none; font-size: 24px; cursor: pointer; padding-left: 10px; }
     </style>
 </head>
-<body onclick="checkClipboard()">
+<body>
 
 <div class="card">
     <h1>📦 宅配追跡</h1>
@@ -57,62 +57,71 @@
 </div>
 
 <script>
-    // ページ読み込み時に履歴を表示
-    window.onload = function() {
-        displayHistory();
-    };
+window.onload = function() {
+    displayHistory();
+    // 入力欄をタップした時にクリップボードを確認する
+    document.getElementById('trackingNumber').addEventListener('focus', checkClipboard);
+};
 
-    // クリップボード確認
-    async function checkClipboard() {
-        try {
-            const text = await navigator.clipboard.readText();
-            const num = text.replace(/[^0-9]/g, '');
-            const suggest = document.getElementById('pasteSuggest');
-            if (num.length >= 8 && num.length <= 14) {
-                suggest.style.display = 'block';
-                suggest.innerText = `📋 「${num}」を貼り付ける`;
-                suggest.setAttribute('data-num', num);
-            } else {
-                suggest.style.display = 'none';
-            }
-        } catch (err) {
-            // 許可がない場合は表示しないだけ
-        }
-    }
-
-    function pasteClip() {
+// クリップボード確認（少し修正）
+async function checkClipboard() {
+    try {
+        // Safariでエラーが出ないよう、権限がある時だけ実行
+        const text = await navigator.clipboard.readText();
+        const num = text.replace(/[^0-9]/g, '');
         const suggest = document.getElementById('pasteSuggest');
-        const num = suggest.getAttribute('data-num');
-        document.getElementById('trackingNumber').value = num;
-        suggest.style.display = 'none';
-        event.stopPropagation(); // 親要素のクリックイベント（checkClipboard）が動かないようにする
-    }
-
-    // 追跡実行
-        function handleTrace(company) {
-        const input = document.getElementById('trackingNumber');
-        const num = input.value.replace(/[^0-9]/g, '');
         
-        if (!num) {
-            alert("番号を入力してください");
-            return;
+        // 8桁〜14桁くらいの数字なら「貼り付けボタン」を表示
+        if (num.length >= 8 && num.length <= 14) {
+            suggest.style.display = 'block';
+            suggest.innerText = `📋 「${num}」を貼り付ける`;
+            suggest.setAttribute('data-num', num);
+        } else {
+            suggest.style.display = 'none';
         }
-
-        saveHistory(num, company);
-        displayHistory();
-        
-        let url = '';
-        if (company === 'yamato') url = "https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=" + num;
-        if (company === 'sagawa') url = "https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=" + num;
-        if (company === 'post') url = "https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S003&locale=ja&SVID=023&reqCodeNo1=" + num;
-
-        // 【Safari対策】 _blank（新タブ）ではなく _top または location.href を使う
-        // これにより「ポップアップブロック」を回避します
-        window.location.href = url;
-        
-        // 入力欄をクリア（戻ってきた時のため）
-        input.value = ""; 
+    } catch (err) {
+        // 権限がない場合は何もしない
     }
+}
+
+function pasteClip() {
+    const suggest = document.getElementById('pasteSuggest');
+    const num = suggest.getAttribute('data-num');
+    document.getElementById('trackingNumber').value = num;
+    suggest.style.display = 'none';
+    // 貼り付けた後、すぐ入力欄からフォーカスを外すと使いやすい
+    document.getElementById('trackingNumber').blur();
+}
+
+// 追跡実行
+function handleTrace(company) {
+    const input = document.getElementById('trackingNumber');
+    const num = input.value.replace(/[^0-9]/g, '');
+    
+    if (!num) {
+        alert("番号を入力してください");
+        return;
+    }
+
+    saveHistory(num, company);
+    displayHistory();
+    
+    let url = '';
+    if (company === 'yamato') url = "https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=" + num;
+    if (company === 'sagawa') url = "https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=" + num;
+    if (company === 'post') url = "https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S003&locale=ja&SVID=023&reqCodeNo1=" + num;
+
+    // Safari対策：今のタブで開く
+    window.location.href = url;
+    input.value = ""; 
+}
+
+// 履歴タップ時
+function reTrace(num, company) {
+    document.getElementById('trackingNumber').value = num;
+    handleTrace(company); // ここで直接handleTraceを呼ぶ
+}
+
 
 
     function saveHistory(num, company) {
