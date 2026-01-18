@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>宅配追跡</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #333; margin: 0; }
+        .card { background: white; max-width: 400px; margin: 0 auto; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { font-size: 1.2rem; text-align: center; margin-bottom: 20px; }
+        
+        /* 貼り付け提案 */
+        #pasteSuggest { 
+            display: none; width: 100%; background: #e8f5e9; color: #2e7d32; 
+            border: 1px dashed #2e7d32; padding: 12px; border-radius: 10px; 
+            margin-bottom: 15px; font-size: 14px; text-align: center; box-sizing: border-box;
+        }
+
+        input { width: 100%; padding: 15px; font-size: 20px; border: 2px solid #ddd; border-radius: 12px; box-sizing: border-box; margin-bottom: 15px; -webkit-appearance: none; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 10px; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); opacity: 0.8; }
+        .yamato { background: #00a030; }
+        .sagawa { background: #004098; }
+        .post { background: #e20011; }
+
+        .history-section { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
+        .history-item { background: #f8f9fa; padding: 12px; border-radius: 10px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        .history-item.is-done { opacity: 0.5; background: #eee; }
+        .history-item.is-done strong { text-decoration: line-through; }
+        .check-area { font-size: 24px; margin-right: 15px; cursor: pointer; flex-shrink: 0; }
+        .history-info { flex-grow: 1; cursor: pointer; overflow: hidden; }
+        .tag { font-size: 10px; padding: 3px 8px; border-radius: 5px; color: white; margin-right: 8px; display: inline-block; }
+        .delete-btn { color: #ccc; border: none; background: none; font-size: 24px; cursor: pointer; padding-left: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>📦 宅配追跡</h1>
+    
+    <div id="pasteSuggest" onclick="pasteClip(event)">📋 コピーした番号を貼り付ける</div>
+
+    <input type="text" id="trackingNumber" placeholder="番号を入力" inputmode="numeric" onfocus="checkClipboard()">
+    
+    <div class="btn-group">
+        <button class="btn yamato" onclick="handleTrace('yamato')">ヤマト運輸</button>
+        <button class="btn sagawa" onclick="handleTrace('sagawa')">佐川急便</button>
+        <button class="btn post" onclick="handleTrace('post')">日本郵便</button>
+    </div>
+
+    <div class="history-section">
+        <h3 style="font-size: 14px; color: #888;">最近の履歴</h3>
+        <div id="historyList"></div>
+    </div>
+</div>
+
+<script>
+    // 起動時の処理
+    window.onload = function() {
+        displayHistory();
+    };
+
+    // クリップボード確認機能
+    async function checkClipboard() {
+        try {
+            const text = await navigator.clipboard.readText();
+            const num = text.replace(/[^0-9]/g, '');
+            const suggest = document.getElementById('pasteSuggest');
+            
+            // 8〜14桁の数字なら提案を表示
+            if (num.length >= 8 && num.length <= 14) {
+                suggest.style.display = 'block';
+                suggest.innerText = "📋 「" + num + "」を貼り付ける";
+                suggest.setAttribute('data-num', num);
+            } else {
+                suggest.style.display = 'none';
+            }
+        } catch (err) {
+            // 権限がない場合は静かに終了
+        }
+    }
+
+    // 貼り付け実行
+    function pasteClip(e) {
+        e.preventDefault();
+        const suggest = document.getElementById('pasteSuggest');
+        const num = suggest.getAttribute('data-num');
+        document.getElementById('trackingNumber').value = num;
+        suggest.style.display = 'none';
+        // キーボードを閉じる
+        document.getElementById('trackingNumber').blur();
+    }
+
+    // 追跡URLを開く
+    function handleTrace(company) {
+        const input = document.getElementById('trackingNumber');
+        const num = input.value.replace(/[^0-9]/g, '');
+        
+        if (!num) {
+            alert("番号を入力してください");
+            return;
+        }
+
+        saveHistory(num, company);
+        displayHistory();
+        
+        let url = '';
+        if (company === 'yamato') url = "https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=" + num;
+        if (company === 'sagawa') url = "https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=" + num;
+        if (company === 'post') url = "https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S003&locale=ja&SVID=023&reqCodeNo1=" + num;
+
+        // Safariのポップアップブロックを避けるため、現在のタブで開く
+        window.location.href = url;
+    }
+
+    // 履歴の保存
+    function saveHistory(num, company) {
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history = history.filter(function(item) { return item.num !== num; });
+        history.unshift({ num: num, company: company, checked: false });
+        if (history.length > 10) history.pop();
+        localStorage.setItem('track_history', JSON.stringify(history));
+    }
+
+    // チェック状態の切り替え
+    function toggleCheck(index, e) {
+        e.stopPropagation();
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history[index].checked = !history[index].checked;
+        localStorage.setItem('track_history', JSON.stringify(history));
+        displayHistory();
+    }
+
+    // 履歴の削除
+    function deleteItem(index, e) {
+        e.stopPropagation();
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history.splice(index, 1);
+        localStorage.setItem('track_history', JSON.stringify(history));
+        displayHistory();
+    }
+
+    // 履歴の表示更新
+    function displayHistory() {
+        const history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        const listDiv = document.getElementById('historyList');
+        listDiv.innerHTML = history.length === 0 ? '<p style="text-align:center; color:#ccc; font-size:12px;">履歴なし</p>' : '';
+
+        history.forEach(function(item, index) {
+            const color = item.company === 'yamato' ? '#00a030' : (item.company === 'sagawa' ? '#004098' : '#e20011');
+            const companyName = item.company === 'yamato' ? 'ヤマト' : (item.company === 'sagawa' ? '佐川' : '郵便');
+            const checkIcon = item.checked ? '✅' : '⬜';
+            const doneClass = item.checked ? 'is-done' : '';
+            
+            listDiv.innerHTML += 
+                '<div class="history-item ' + doneClass + '">' +
+                    '<div class="check-area" onclick="toggleCheck(' + index + ', event)">' + checkIcon + '</div>' +
+                    '<div class="history-info" onclick="reTrace(\'' + item.num + '\', \'' + item.company + '\')">' +
+                        '<span class="tag" style="background:' + color + '">' + companyName + '</span>' +
+                        '<strong>' + item.num + '</strong>' +
+                    '</div>' +
+                    '<button class="delete-btn" onclick="deleteItem(' + index + ', event)">×</button>' +
+                '</div>';
+        });
+    }
+
+    // 履歴タップで再追跡
+    function reTrace(num, company) {
+        document.getElementById('trackingNumber').value = num;
+        handleTrace(company);
+    }
+</script>
+
+</body>
+</html>
