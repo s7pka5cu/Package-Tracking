@@ -89,7 +89,7 @@
     }
 
     // 追跡実行
-    function handleTrace(company) {
+        function handleTrace(company) {
         const input = document.getElementById('trackingNumber');
         const num = input.value.replace(/[^0-9]/g, '');
         
@@ -106,10 +106,14 @@
         if (company === 'sagawa') url = "https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=" + num;
         if (company === 'post') url = "https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S003&locale=ja&SVID=023&reqCodeNo1=" + num;
 
-        // URLを新しいタブで開く
-        window.open(url, '_blank');
+        // 【Safari対策】 _blank（新タブ）ではなく _top または location.href を使う
+        // これにより「ポップアップブロック」を回避します
+        window.location.href = url;
+        
+        // 入力欄をクリア（戻ってきた時のため）
         input.value = ""; 
     }
+
 
     function saveHistory(num, company) {
         let history = JSON.parse(localStorage.getItem('track_history') || '[]');
