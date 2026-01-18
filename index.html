@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>宅配追跡</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; padding: 20px; color: #333; margin: 0; }
+        .card { background: white; max-width: 400px; margin: 0 auto; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { font-size: 1.2rem; text-align: center; margin-bottom: 20px; }
+        
+        input { width: 100%; padding: 15px; font-size: 20px; border: 2px solid #ddd; border-radius: 12px; box-sizing: border-box; margin-bottom: 15px; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 10px; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+
+        .yamato { background: #00a030; } /* ヤマト：緑 */
+        .sagawa { background: #004098; } /* 佐川：青 */
+        .post { background: #e20011; }   /* 郵便：赤 */
+
+        .history-section { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
+        .history-item { 
+            background: #f8f9fa; padding: 12px; border-radius: 10px; margin-bottom: 8px; 
+            display: flex; align-items: center; 
+        }
+        .history-item.is-done { opacity: 0.5; background: #eee; }
+        .history-item.is-done strong { text-decoration: line-through; }
+
+        .check-area { font-size: 24px; margin-right: 15px; cursor: pointer; }
+        .history-info { flex-grow: 1; cursor: pointer; }
+        .tag { font-size: 10px; padding: 3px 8px; border-radius: 5px; color: white; margin-right: 8px; }
+        .delete-btn { color: #ccc; border: none; background: none; font-size: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>📦 宅配追跡</h1>
+    <input type="text" id="trackingNumber" placeholder="番号を入力" inputmode="numeric">
+    
+    <div class="btn-group">
+        <button class="btn yamato" onclick="handleTrace('yamato')">ヤマト運輸</button>
+        <button class="btn sagawa" onclick="handleTrace('sagawa')">佐川急便</button>
+        <button class="btn post" onclick="handleTrace('post')">日本郵便</button>
+    </div>
+
+    <div class="history-section">
+        <h3 style="font-size: 14px; color: #888;">最近の履歴</h3>
+        <div id="historyList"></div>
+    </div>
+</div>
+
+<script>
+    window.onload = displayHistory;
+
+    function handleTrace(company) {
+        const input = document.getElementById('trackingNumber');
+        const num = input.value.replace(/[^0-9]/g, '');
+        if (!num) return;
+
+        saveHistory(num, company);
+        displayHistory();
+        
+        let url = '';
+        if (company === 'yamato') url = `https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=${num}`;
+        if (company === 'sagawa') url = `https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=${num}`;
+        if (company === 'post') url = `https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S003&locale=ja&SVID=023&reqCodeNo1=${num}`;
+
+        window.open(url, '_blank');
+        input.value = ""; // 送信後に入力欄を空にする
+    }
+
+    function saveHistory(num, company) {
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history = history.filter(item => item.num !== num);
+        history.unshift({ num, company, checked: false });
+        if (history.length > 10) history.pop();
+        localStorage.setItem('track_history', JSON.stringify(history));
+    }
+
+    function toggleCheck(index) {
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history[index].checked = !history[index].checked;
+        localStorage.setItem('track_history', JSON.stringify(history));
+        displayHistory();
+    }
+
+    function deleteItem(index) {
+        let history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        history.splice(index, 1);
+        localStorage.setItem('track_history', JSON.stringify(history));
+        displayHistory();
+    }
+
+    function displayHistory() {
+        const history = JSON.parse(localStorage.getItem('track_history') || '[]');
+        const listDiv = document.getElementById('historyList');
+        listDiv.innerHTML = history.length === 0 ? '<p style="text-align:center; color:#ccc; font-size:12px;">履歴なし</p>' : '';
+
+        history.forEach((item, index) => {
+            const color = item.company === 'yamato' ? '#00a030' : (item.company === 'sagawa' ? '#004098' : '#e20011');
+            const companyName = item.company === 'yamato' ? 'ヤマト' : (item.company === 'sagawa' ? '佐川' : '郵便');
+            
+            listDiv.innerHTML += `
+                <div class="history-item ${item.checked ? 'is-done' : ''}">
+                    <div class="check-area" onclick="toggleCheck(${index})">${item.checked ? '✅' : '⬜'}</div>
+                    <div class="history-info" onclick="copyAndTrace('${item.num}', '${item.company}')">
+                        <span class="tag" style="background:${color}">${companyName}</span>
+                        <strong>${item.num}</strong>
+                    </div>
+                    <button class="delete-btn" onclick="deleteItem(${index})">×</button>
+                </div>
+            `;
+        });
+    }
+
+    function copyAndTrace(num, company) {
+        document.getElementById('trackingNumber').value = num;
+        handleTrace(company);
+    }
+</script>
+
+</body>
+</html>
